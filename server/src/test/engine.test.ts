@@ -39,6 +39,31 @@ describe('ResponseParser', () => {
     expect(result.parseErrors).toHaveLength(1);
     expect(result.parseErrors[0]).toContain('解析工具 "read" 的參數失敗');
   });
+
+  it('應該修復 LLM 在命令參數中產生的巢狀引號錯誤', () => {
+    const parser = new ResponseParser();
+    // LLM 常產生：{"command": "git commit -m "my message""}
+    // 注意這裡的巢狀引號是未跳脫的
+    const raw = `<tool_call name="bash" id="call_1">
+{"command": "git commit -m "Refactor tool call tracking""}
+</tool_call>`;
+    const result = parser.parse(raw);
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0].name).toBe('bash');
+    expect(result.toolCalls[0].arguments.command).toBe('git commit -m "Refactor tool call tracking"');
+    expect(result.parseErrors).toHaveLength(0);
+  });
+
+  it('應該修復更複雜的巢狀引號情況', () => {
+    const parser = new ResponseParser();
+    const raw = `<tool_call name="bash">
+{"command": "echo "Hello World" && ls -la"}
+</tool_call>`;
+    const result = parser.parse(raw);
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0].arguments.command).toBe('echo "Hello World" && ls -la');
+    expect(result.parseErrors).toHaveLength(0);
+  });
 });
 
 describe('DependencyPlanner', () => {
