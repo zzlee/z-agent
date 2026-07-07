@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Z-Agent - 人機協作 AI Agent 工作台</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- 側邊欄: 會話清單 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="logo">Z-Agent <span>No-LLM</span></h1>
+        <button id="btnNewSession" class="btn-new-session">+ 新會話</button>
+      </div>
+      <div id="sessionList" class="session-list">
+        <!-- 會話項目會動態渲染在此 -->
+      </div>
+    </aside>
+
+    <!-- 主要工作區域 -->
+    <main class="main-area">
+      <!-- 標頭 -->
+      <header class="main-header">
+        <div>
+          <h2 id="currentSessionName">選擇一個會話或建立新會話</h2>
+          <span id="currentWorkspacePath" class="workspace-path hidden"></span>
+        </div>
+        <div class="workspace-actions">
+          <button id="btnCompactHistory" class="btn-secondary hidden">✂️ 壓縮歷史</button>
+          <button id="btnSettings" class="btn-secondary">⚙️ 系統設定</button>
+          <button id="btnRefreshPrompt" class="btn-secondary hidden">🔄 重新整理提示詞</button>
+        </div>
+      </header>
+
+      <!-- 主要內容板塊 -->
+      <div class="content-wrapper">
+        <!-- 左：對話歷史 -->
+        <section class="chat-panel">
+          <div id="messagesContainer" class="messages-container">
+            <div class="message-bubble">
+              <div class="message-sender">Z-Agent System</div>
+              <div class="message-text">歡迎使用 Z-Agent！請在左側建立會話以開始進行任務，或者點選已有的工作對話。</div>
+            </div>
+          </div>
+          
+          <!-- 使用者輸入框 (在最下方) -->
+          <div class="chat-input-area">
+            <input type="text" id="chatInput" class="chat-input" placeholder="請輸入您希望執行的下一個工作步驟..." disabled>
+            <button id="btnSendMessage" class="btn-primary" disabled>送出</button>
+          </div>
+        </section>
+
+        <!-- 右：手動複製貼上與工具執行面板 -->
+        <section class="action-panel">
+          <!-- 區塊 1: 提示詞輸出 -->
+          <div id="promptCard" class="card hidden">
+            <div class="card-title">
+              📋 提示詞複製區
+              <span id="tokenBadge" class="badge-tokens">0 Tokens</span>
+            </div>
+            <div style="display: flex; gap: 6px; margin-bottom: 4px;">
+              <button id="btnPromptTabSystem" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">系統提示詞 (System)</button>
+              <button id="btnPromptTabFull" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">完整提示詞 (首輪)</button>
+              <button id="btnPromptTabLatest" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">僅最新內容 (多輪)</button>
+            </div>
+            <p id="promptCardDesc" style="font-size: 0.8rem; color: var(--text-secondary);">複製最新指令或工具結果，在既有 LLM 對話中貼上即可：</p>
+            <textarea id="promptTextarea" class="prompt-textarea" readonly></textarea>
+            <button id="btnCopyPrompt" class="btn-primary">📋 複製提示詞</button>
+          </div>
+
+          <!-- 區塊 1.5: 工具執行結果複製 -->
+          <div id="toolResultCard" class="card hidden">
+            <div class="card-title">📋 複製工具執行結果</div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary);">將此執行的 JSON 結果複製並貼回外部 LLM：</p>
+            <textarea id="toolResultTextarea" class="prompt-textarea" style="height: 120px;" readonly></textarea>
+            <button id="btnCopyToolResult" class="btn-primary">📋 複製工具結果到剪貼簿</button>
+          </div>
+
+          <!-- 區塊 2: 回應輸入 -->
+          <div id="responseCard" class="card hidden">
+            <div class="card-title">📝 回應貼回區</div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary);">將外部 LLM 的回答貼在下方：</p>
+            <textarea id="responseTextarea" class="prompt-textarea" placeholder="在這裡貼上 LLM 回應（必須包含它發出的 <tool_call> XML 標記）..."></textarea>
+            <button id="btnSubmitResponse" class="btn-primary">▶ 提交並解析回應</button>
+          </div>
+
+          <!-- 區塊 3: 執行計畫 -->
+          <div id="planCard" class="card hidden">
+            <div class="card-title">🔧 工具執行計畫</div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary);">系統偵測到下列工具呼叫。已依據依賴關係進行 Stage 分組：</p>
+            
+            <div id="planContainer" class="plan-container">
+              <!-- 執行計畫 Stage 會在此動態生成 -->
+            </div>
+
+            <button id="btnExecutePlan" class="btn-primary" style="margin-top: 10px;">▶ 執行確認計畫</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- 底部狀態列 -->
+  <footer class="status-bar">
+    <div class="status-left">
+      <span class="status-indicator">
+        <span id="connectionDot" class="dot"></span>
+        <span id="connectionText">伺服器連線中...</span>
+      </span>
+      <span id="agentPhase" class="status-indicator">
+        <span id="phaseDot" class="dot"></span>
+        <span id="phaseText">階段: 閒置</span>
+      </span>
+    </div>
+    <div class="status-right">
+      <span>作業系統: <strong id="statusOs">-</strong></span>
+      <span>會話 ID: <strong id="statusSessionId">-</strong></span>
+    </div>
+  </footer>
+
+  <!-- 新增會話 Modal -->
+  <div id="newSessionModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>建立新會話</h3>
+      <div class="form-group">
+        <label for="inputSessionName">會話名稱 (可選)</label>
+        <input type="text" id="inputSessionName" class="form-control" placeholder="例如：建立 Express 伺服器">
+      </div>
+      <div class="form-group">
+        <label for="inputSessionCwd">工作目錄路徑 (本機絕對路徑或相對於伺服器)</label>
+        <input type="text" id="inputSessionCwd" class="form-control" value="./workspace">
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelModal" class="btn-secondary">取消</button>
+        <button id="btnConfirmModal" class="btn-primary">建立</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 系統設定 Modal -->
+  <div id="settingsModal" class="modal-overlay hidden">
+    <div class="modal-content" style="width: 500px;">
+      <h3>⚙️ Z-Agent 系統設定</h3>
+      <div class="form-group">
+        <label for="settingsPort">伺服器 Port</label>
+        <input type="number" id="settingsPort" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="settingsHost">伺服器 Host</label>
+        <input type="text" id="settingsHost" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="settingsCwd">預設工作目錄</label>
+        <input type="text" id="settingsCwd" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="settingsTemplate">預設提示詞模板</label>
+        <select id="settingsTemplate" class="form-control" style="background: var(--bg-primary); color: var(--text-primary);">
+          <!-- 模板選項會動態載入 -->
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="settingsBlacklist">Bash 命令黑名單 (逗號分隔)</label>
+        <input type="text" id="settingsBlacklist" class="form-control">
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelSettings" class="btn-secondary">取消</button>
+        <button id="btnSaveSettings" class="btn-primary">儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 建立分支 Modal -->
+  <div id="branchModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>✂️ 自此訊息建立分支</h3>
+      <p style="font-size: 0.8rem; color: var(--text-secondary);">系統將複製當前會話在此時間點之前（含該訊息）的歷史歷程建立新對話分支。</p>
+      <input type="hidden" id="branchSourceMsgId">
+      <div class="form-group">
+        <label for="inputBranchName">分支會話名稱</label>
+        <input type="text" id="inputBranchName" class="form-control" placeholder="例如：嘗試修改 - 方案 B">
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelBranch" class="btn-secondary">取消</button>
+        <button id="btnConfirmBranch" class="btn-primary">確認建立分支</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 對話壓縮 Modal -->
+  <div id="compactModal" class="modal-overlay hidden">
+    <div class="modal-content" style="width: 550px;">
+      <h3>✂️ 壓縮對話歷史歷程</h3>
+      <div id="compactStep1" class="plan-container">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">第一步：複製壓縮專用的提示詞，貼給外部 LLM 以取得「目前狀態與已完成事項」的精簡摘要：</p>
+        <textarea id="compactPromptTextarea" class="prompt-textarea" style="height: 120px;" readonly></textarea>
+        <button id="btnCopyCompactPrompt" class="btn-primary">📋 複製壓縮提示詞</button>
+      </div>
+      <div id="compactStep2" class="plan-container" style="margin-top: 10px;">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">第二步：將外部 LLM 回覆的精簡摘要貼在下方：</p>
+        <textarea id="compactSummaryTextarea" class="prompt-textarea" style="height: 120px;" placeholder="請在此貼上 LLM 回覆的條列式歷史歷程摘要..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelCompact" class="btn-secondary">取消</button>
+        <button id="btnSubmitCompact" class="btn-primary">▶ 執行歷史壓縮</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
