@@ -61,7 +61,9 @@ export class McpTool implements AgentTool {
         transport = new StdioClientTransport({
           command: serverCommand,
           args: serverArgs,
-          env: { ...process.env } // Pass current environment variables
+          env: Object.fromEntries(
+            Object.entries(process.env).filter(([_, v]) => v !== undefined)
+          ) as Record<string, string>
         });
 
         const client = new Client(
@@ -94,7 +96,8 @@ export class McpTool implements AgentTool {
             throw new Error(resultString);
           } else {
              // Standardize text output if it's text content
-             const contents = response.content.map((c: any) => {
+             const contentArr = response.content as Array<{ type: string; text?: string }>;
+             const contents = contentArr.map((c) => {
                if (c.type === 'text') {
                  return c.text;
                }

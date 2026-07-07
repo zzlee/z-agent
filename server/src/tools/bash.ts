@@ -26,7 +26,7 @@ export class BashTool implements AgentTool {
     promptSnippet: 'bash: Run a bash command in the working directory'
   };
 
-  private blacklist: string[] = ['sudo', 'su', 'rm -rf /', 'nano', 'vim', 'vi'];
+  private blacklist: string[] = [];
   private shellPath: string;
 
   constructor(customBlacklist?: string[]) {
