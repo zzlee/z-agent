@@ -41,6 +41,7 @@ const el = {
   inputSessionCwd: document.getElementById('inputSessionCwd'),
   btnCancelModal: document.getElementById('btnCancelModal'),
   btnConfirmModal: document.getElementById('btnConfirmModal'),
+  autoCopyCheckbox: document.getElementById('autoCopyCheckbox'),
 };
 
 function connectWS() {
@@ -195,8 +196,10 @@ function showEnvInfo(workingDir) {
   el.btnPromptTabLatest.style.display = 'none';
 
   // Auto-copy env text
-  copyToClipboard(envText);
-  flashBtn(el.btnCopyPrompt, '✅ 已自動複製！');
+  if (el.autoCopyCheckbox.checked) {
+    copyToClipboard(envText);
+    flashBtn(el.btnCopyPrompt, '✅ 已自動複製！');
+  }
 }
 
 async function showPrompt() {
@@ -252,8 +255,10 @@ async function executeToolCalls(plan) {
     el.toolResultCard.classList.remove('hidden');
 
     // Auto-copy tool result
-    copyToClipboard(formatted);
-    flashBtn(el.btnCopyToolResult, '✅ 已自動複製！');
+    if (el.autoCopyCheckbox.checked) {
+      copyToClipboard(formatted);
+      flashBtn(el.btnCopyToolResult, '✅ 已自動複製！');
+    }
 
     // 更新歷程
     try {
@@ -339,7 +344,7 @@ function switchTab(tab) {
   }
   el.promptTextarea.value = textToCopy;
 
-  if (textToCopy) {
+  if (textToCopy && el.autoCopyCheckbox.checked) {
     copyToClipboard(textToCopy);
     flashBtn(el.btnCopyPrompt, '✅ 已自動複製！');
   }
