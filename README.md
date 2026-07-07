@@ -50,3 +50,4 @@ npm start
 | [06-prompt-assembly.md](wiki/06-prompt-assembly.md) | 提示詞組裝變數機制 |
 | [07-implementation-plan.md](wiki/07-implementation-plan.md) | 實施計畫 |
 | [08-user-guide.md](wiki/08-user-guide.md) | 使用者操作與部署指南 |
+| [09-cloudflare-deployment.md](wiki/09-cloudflare-deployment.md) | Cloudflare 部署可行性分析 |
