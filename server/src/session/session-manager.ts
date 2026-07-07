@@ -28,7 +28,7 @@ export class SessionManager {
     const defaultSettings: SessionSettings = {
       systemPromptTemplate: 'coding-assistant',
       targetModel: 'claude-3-5-sonnet',
-      enabledTools: ['read', 'write', 'edit', 'bash', 'search'],
+      enabledTools: ['read', 'write', 'edit', 'bash'],
       maxOutputLines: 1000,
       bashTimeout: 30,
       ...settings

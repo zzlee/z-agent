@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
-import { AgentTool, truncateContent } from './base.js';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ToolDefinition, ToolResult } from '../types.js';
+import { AgentTool, truncateContent, expandTilde } from './base.js';
 
 export class BashTool implements AgentTool {
   definition: ToolDefinition = {
@@ -25,38 +27,53 @@ export class BashTool implements AgentTool {
   };
 
   private blacklist: string[] = ['sudo', 'su', 'rm -rf /', 'nano', 'vim', 'vi'];
+  private shellPath: string;
 
   constructor(customBlacklist?: string[]) {
     if (customBlacklist) {
       this.blacklist = customBlacklist;
     }
+    this.shellPath = BashTool.resolveShellPath();
+  }
+
+  static resolveShellPath(): string {
+    const absoluteCandidates = ['/bin/bash', '/usr/bin/bash', '/bin/sh'];
+    for (const candidate of absoluteCandidates) {
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return 'bash';
   }
 
   async execute(toolCallId: string, args: Record<string, any>, workingDir: string): Promise<ToolResult> {
     const startTime = Date.now();
+    const traceId = toolCallId.slice(-12);
+    const resolvedCwd = resolve(expandTilde(workingDir));
+
     try {
       const { command, timeout = 30 } = args;
       if (!command) {
         throw new Error('未提供必填參數 "command"');
       }
 
-      // 安全性檢查：阻擋黑名單中的危險或互動式命令
+      const commandPreview = command.length > 120 ? command.slice(0, 120) + '…' : command;
+      console.log(`[BashTool:${traceId}] ▶ cwd: ${resolvedCwd} | shell: ${this.shellPath} | cmd: ${commandPreview}`);
+
       const isDangerous = this.blacklist.some(b => command.includes(b));
       if (isDangerous) {
+        console.warn(`[BashTool:${traceId}] ✗ BLOCKED: ${commandPreview}`);
         throw new Error(`安全性拒絕：偵測到命令包含禁止執行的關鍵字（例如 sudo、rm -rf /、互動編輯器等）。`);
       }
 
-      // 檢查超時時間範圍
       const resolvedTimeout = Math.min(300, Math.max(1, timeout)) * 1000;
-
       const outputData: string[] = [];
 
       const result = await new Promise<{ exitCode: number | null; output: string; err?: string }>((resolvePromise) => {
-        // 使用 bash -c 執行命令
-        const child = spawn('bash', ['-c', command], {
-          cwd: workingDir,
-          env: { ...process.env, PAGER: 'cat' }, // 強制 PAGER=cat 避免分頁掛起
-          stdio: ['ignore', 'pipe', 'pipe'] // 不輸入 stdin
+        const child = spawn(this.shellPath, ['-c', command], {
+          cwd: resolvedCwd,
+          env: { ...process.env, PAGER: 'cat' },
+          stdio: ['ignore', 'pipe', 'pipe']
         });
 
         let isSettled = false;
@@ -64,34 +81,20 @@ export class BashTool implements AgentTool {
         const timer = setTimeout(() => {
           if (!isSettled) {
             isSettled = true;
-            try {
-              child.kill('SIGTERM');
-            } catch (e) {}
-            resolvePromise({
-              exitCode: null,
-              output: outputData.join(''),
-              err: `執行超時 (限制 ${timeout} 秒)`
-            });
+            try { child.kill('SIGTERM'); } catch (e) {}
+            resolvePromise({ exitCode: null, output: outputData.join(''), err: `執行超時 (限制 ${timeout} 秒)` });
           }
         }, resolvedTimeout);
 
-        child.stdout.on('data', (data) => {
-          outputData.push(data.toString('utf8'));
-        });
-
-        child.stderr.on('data', (data) => {
-          outputData.push(data.toString('utf8'));
-        });
+        child.stdout.on('data', (data) => { outputData.push(data.toString('utf8')); });
+        child.stderr.on('data', (data) => { outputData.push(data.toString('utf8')); });
 
         child.on('error', (err) => {
           if (!isSettled) {
             isSettled = true;
             clearTimeout(timer);
-            resolvePromise({
-              exitCode: null,
-              output: outputData.join(''),
-              err: err.message
-            });
+            console.error(`[BashTool:${traceId}] ✗ SPAWN ERROR: ${err.message}`);
+            resolvePromise({ exitCode: null, output: outputData.join(''), err: err.message });
           }
         });
 
@@ -99,50 +102,47 @@ export class BashTool implements AgentTool {
           if (!isSettled) {
             isSettled = true;
             clearTimeout(timer);
-            resolvePromise({
-              exitCode: code,
-              output: outputData.join('')
-            });
+            resolvePromise({ exitCode: code, output: outputData.join('') });
           }
         });
       });
 
+      const elapsed = Date.now() - startTime;
+
       if (result.err) {
+        console.log(`[BashTool:${traceId}] ✗ FAILED (${elapsed}ms): ${result.err}`);
         return {
           toolCallId,
           isError: true,
           content: `命令執行失敗: ${result.err}\n輸出紀錄:\n${result.output}`,
-          details: {
-            exitCode: result.exitCode,
-            timeout: true
-          },
-          executionTimeMs: Date.now() - startTime
+          details: { exitCode: result.exitCode, timeout: result.err.includes('超時') },
+          executionTimeMs: elapsed
         };
       }
 
       const isError = result.exitCode !== 0;
-      
-      // 進行輸出限制 (最大 1000 行 / 100KB)
       const maxLines = 1000;
       const maxBytes = 100 * 1024;
       const { content: truncatedContent, truncated } = truncateContent(result.output, maxLines, maxBytes);
+      const outputBytes = result.output.length;
+
+      console.log(`[BashTool:${traceId}] ${isError ? '✗' : '✓'} exit=${result.exitCode} ${outputBytes}B ${truncated ? '(truncated) ' : ''}${elapsed}ms`);
 
       return {
         toolCallId,
         isError,
         content: truncatedContent || '(無輸出內容)',
-        details: {
-          exitCode: result.exitCode,
-          truncated
-        },
-        executionTimeMs: Date.now() - startTime
+        details: { exitCode: result.exitCode, truncated },
+        executionTimeMs: elapsed
       };
     } catch (err: any) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[BashTool:${traceId}] ✗ ERROR: ${(err as Error).message} (${elapsed}ms)`);
       return {
         toolCallId,
         isError: true,
         content: err.message || '未知錯誤',
-        executionTimeMs: Date.now() - startTime
+        executionTimeMs: elapsed
       };
     }
   }

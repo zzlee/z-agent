@@ -1,4 +1,5 @@
 import { resolve, relative, isAbsolute } from 'node:path';
+import { homedir } from 'node:os';
 import { ToolDefinition, ToolResult } from '../types.js';
 
 export interface AgentTool {
@@ -7,13 +8,25 @@ export interface AgentTool {
 }
 
 /**
+ * 展開路徑中的 tilde (~) 為使用者家目錄
+ */
+export function expandTilde(path: string): string {
+  if (path.startsWith('~/')) {
+    return homedir() + path.slice(1);
+  }
+  return path;
+}
+
+/**
  * 確保目標路徑在工作目錄內，防止目錄穿越攻擊
  */
 export function resolveSafePath(workingDir: string, targetPath: string): string {
-  const absoluteWorkingDir = resolve(workingDir);
+  // 先展開 tilde，避免 resolve 將 ~ 視為字面目錄名稱
+  const expandedCwd = expandTilde(workingDir);
+  const absoluteWorkingDir = resolve(expandedCwd);
   const absoluteTargetPath = isAbsolute(targetPath) 
     ? resolve(targetPath) 
-    : resolve(workingDir, targetPath);
+    : resolve(expandedCwd, targetPath);
 
   const relativePath = relative(absoluteWorkingDir, absoluteTargetPath);
   

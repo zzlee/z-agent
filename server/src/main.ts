@@ -27,7 +27,7 @@ async function bootstrap() {
         workingDirectory: './workspace',
         systemPromptTemplate: 'coding-assistant',
         targetModel: 'claude-3-5-sonnet',
-        enabledTools: ['read', 'write', 'edit', 'bash', 'search']
+        enabledTools: ['read', 'write', 'edit', 'bash']
       },
       security: {
         allowedPaths: ['./workspace'],

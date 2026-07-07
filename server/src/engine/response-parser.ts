@@ -14,21 +14,19 @@ export class ResponseParser {
     const toolCalls: ToolCallData[] = [];
     const parseErrors: string[] = [];
     
-    // 正則表達式匹配 <tool_call name="name">JSON_ARGS</tool_call>
-    // 支援單引號、雙引號，以及可能出現的多餘空白字元
-    const toolCallRegex = /<tool_call\s+name=(['"])(.*?)\1\s*>([\s\S]*?)<\/tool_call>/gi;
+    // 正則表達式匹配 <tool_call ...>JSON_ARGS</tool_call>
+    const toolCallRegex = /<tool_call([\s\S]*?)>([\s\S]*?)<\/tool_call>/gi;
     
     let textContent = rawResponse;
     let match: RegExpExecArray | null;
     
-    // 為了避免 RegExp 的 state 問題，我們使用一個新正則在迴圈中匹配
-    const matches: Array<{ fullMatch: string; name: string; content: string }> = [];
+    const matches: Array<{ fullMatch: string; attrs: string; content: string }> = [];
     
     while ((match = toolCallRegex.exec(rawResponse)) !== null) {
       matches.push({
         fullMatch: match[0],
-        name: match[2],
-        content: match[3]
+        attrs: match[1],
+        content: match[2]
       });
     }
 
@@ -37,6 +35,12 @@ export class ResponseParser {
     for (const item of matches) {
       // 從文字內容中移除工具呼叫區塊，保留單純的對話文字
       textContent = textContent.replace(item.fullMatch, '');
+
+      const nameMatch = /name=(['"])(.*?)\1/i.exec(item.attrs);
+      const idMatch = /id=(['"])(.*?)\1/i.exec(item.attrs);
+      
+      const toolName = nameMatch ? nameMatch[2].trim() : '';
+      const toolId = idMatch ? idMatch[2].trim() : `call_${Date.now()}_${callIdCounter++}`;
 
       try {
         const cleanedArgsStr = item.content.trim();
@@ -47,13 +51,13 @@ export class ResponseParser {
         }
 
         toolCalls.push({
-          id: `call_${Date.now()}_${callIdCounter++}`,
-          name: item.name.trim(),
+          id: toolId,
+          name: toolName,
           arguments: parsedArgs
         });
       } catch (err: any) {
         parseErrors.push(
-          `解析工具 "${item.name}" 的參數失敗。原始參數字串: "${item.content.trim()}"。錯誤原因: ${err.message}`
+          `解析工具 "${toolName}" 的參數失敗。原始參數字串: "${item.content.trim()}"。錯誤原因: ${err.message}`
         );
       }
     }

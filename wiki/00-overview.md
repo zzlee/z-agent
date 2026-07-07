@@ -1,71 +1,56 @@
-# Z-Agent：無 LLM 的人機協作 AI Agent
+# Z-Agent：LLM Tool Use 轉發閘道
 
 ## 專案概述
 
-Z-Agent 是一套**無內建 LLM** 的 AI Agent 系統。系統本身負責管理工作流程、工具執行、狀態追蹤，而所有需要語言模型推理的環節，都透過**使用者手動複製貼上**到外部 LLM 服務（如 ChatGPT、Claude、Gemini 等）來完成。
+Z-Agent 是一個**無內建 LLM、無 API 金鑰**的輕量級工具呼叫轉發閘道 (Tool-Use Relay Gateway)。
+
+許多強大的 LLM（如 Gemini、ChatGPT、Claude 等）雖然具備 tool-use / function-calling 能力，但它們無法直接存取本地檔案系統或執行命令。Z-Agent 的角色非常單純——**只做轉發（relay）**：
+
+1. **本機工具 Schema 輸出**：將可用工具（read、write、edit、bash、search）的定義與系統提示詞組裝成一份文字，供使用者手動複製給外部 LLM。
+2. **LLM 回應接收與轉發執行**：使用者將 LLM 的回應（含 `<tool_call>` 標記）複製貼回 Z-Agent，系統解析出其中的工具呼叫，在本地依賴排序後執行，最後輸出結果。
+3. **結果反饋**：執行完的工具結果格式化後輸出，使用者可複製回 LLM 對話中，形成下一輪循環。
+
+整個過程不涉及 LLM API、不傳送資料到第三方、不需要金鑰設定——Z-Agent 僅作為**人機之間的轉發管道**。
+
+---
 
 ## 設計哲學
 
-參照 [earendil-works/pi](https://github.com/earendil-works/pi) 的簡潔設計：
+- **純轉發、無推理**：Z-Agent 不進行任何 LLM 推理或決策，僅負責工具描述輸出與工具呼叫接收執行。
+- **人工數據通路**：使用者手工複製貼上作為數據傳輸的唯一通道，資料永不離開使用者的瀏覽器與本機。
+- **極簡工具集**：提供四個核心工具（read / write / edit / bash），檔案搜尋由 LLM 透過 bash 呼叫 `rg` / `grep` 自行實現。
+- **依賴排序執行**：多個工具呼叫之間若有檔案讀寫衝突或 bash 屏障，自動進行 DAG 依賴分析與分階段（Stage）執行。
 
-1. **極簡工具集**：仿照 Pi 僅提供 `read`、`write`、`edit`、`bash` 四個基礎工具的作法，Z-Agent 定義一組精簡但完備的工具集
-2. **Agent Loop 由人驅動**：Pi 的 Agent Loop 是 `User → LLM → Tool → LLM → ...`，Z-Agent 將 LLM 環節替換為「使用者去外部 LLM 取得回應後貼回」
-3. **結構化提示詞生成**：系統自動組裝上下文、工具描述、工作狀態成為可直接貼給 LLM 的提示詞
-4. **Web 界面優先**：提供視覺化操作介面，降低複製貼上的操作摩擦
+---
 
-## 核心概念
+## 核心流程
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                    Z-Agent Web UI                       │
-│                                                        │
-│  ┌──────────┐   ┌──────────┐   ┌────────────────────┐ │
-│  │  任務管理  │   │ 工具面板  │   │   LLM 交互區域    │ │
-│  │          │   │          │   │                    │ │
-│  │ • 新增任務│   │ • read   │   │ ┌──────────────┐  │ │
-│  │ • 任務歷史│   │ • write  │   │ │ 提示詞輸出    │  │ │
-│  │ • 狀態追蹤│   │ • edit   │   │ │ (複製到 LLM) │  │ │
-│  │          │   │ • bash   │   │ └──────────────┘  │ │
-│  │          │   │ • search │   │ ┌──────────────┐  │ │
-│  │          │   │          │   │ │ LLM回應輸入   │  │ │
-│  │          │   │          │   │ │ (貼回系統)    │  │ │
-│  └──────────┘   └──────────┘   │ └──────────────┘  │ │
-│                                └────────────────────┘ │
-└────────────────────────────────────────────────────────┘
-         │                              ▲
-         ▼                              │
-┌─────────────────┐            ┌────────────────────┐
-│   Agent Engine   │            │   外部 LLM 服務     │
-│                 │            │  (ChatGPT/Claude/   │
-│ • 工具執行器     │            │   Gemini/...)       │
-│ • 狀態管理       │  使用者手動  │                    │
-│ • 提示詞組裝器   │ ◄─────────►│                    │
-│ • 會話記錄       │  複製貼上    │                    │
-└─────────────────┘            └────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                   Z-Agent Relay UI                        │
+│                                                           │
+│  1. 系統提示詞 + 工具 Schema  ──[複製]──> 外部 LLM         │
+│                                                           │
+│  2. 外部 LLM 回應 (含 tool_call)  <──[貼回]──              │
+│                                                           │
+│  3. 解析工具呼叫 → 依賴分析 → 執行 → 格式化結果            │
+│                                                           │
+│  4. 結果 <──[複製]── 回到外部 LLM 繼續下一輪                │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
 ```
 
-## 與 Pi 的設計對照
-
-| 設計面向 | Pi (earendil-works/pi) | Z-Agent |
-|---------|----------------------|---------|
-| LLM 整合 | 內建多 Provider API | 無內建，使用者手動代理 |
-| 工具集 | read, write, edit, bash | read, write, edit, bash, search |
-| Agent Loop | 自動化循環 | 人工驅動循環 |
-| 介面 | TUI (終端) | Web UI |
-| 提示詞 | 自動發送給 LLM | 組裝後顯示，使用者複製 |
-| 工具呼叫解析 | LLM 回應自動解析 | 使用者貼回後系統解析 |
-| 狀態管理 | AgentState | 相同概念，Web 持久化 |
-| 會話記錄 | JSONL | JSON 儲存 |
-| 工具執行模式 | 支援並行 (parallel) 與依序 (sequential) | 支援依賴分析並行執行 (不影響順序下同時執行) |
+---
 
 ## 文件索引
 
 | 文件 | 說明 |
-|-----|------|
-| [01-architecture.md](01-architecture.md) | 系統架構設計 |
-| [02-agent-loop.md](02-agent-loop.md) | Agent Loop 與人機協作流程 |
-| [03-tools.md](03-tools.md) | 工具定義與提示詞設計 |
-| [04-web-ui.md](04-web-ui.md) | Web 界面設計 |
-| [05-data-model.md](05-data-model.md) | 資料模型與儲存 |
-| [06-prompt-assembly.md](06-prompt-assembly.md) | 提示詞組裝機制 |
-| [07-implementation-plan.md](07-implementation-plan.md) | 分階段實施計畫 |
+|------|------|
+| [01-architecture.md](01-architecture.md) | 極簡前後端架構設計 |
+| [02-agent-loop.md](02-agent-loop.md) | 轉發循環與 DAG 依賴執行 |
+| [03-tools.md](03-tools.md) | 五大工具定義與使用格式 |
+| [04-web-ui.md](04-web-ui.md) | Web 轉發控制台介面設計 |
+| [05-data-model.md](05-data-model.md) | 會話資料模型與儲存 |
+| [06-prompt-assembly.md](06-prompt-assembly.md) | 提示詞組裝變數機制 |
+| [07-implementation-plan.md](07-implementation-plan.md) | 實施計畫 |
+| [08-user-guide.md](08-user-guide.md) | 使用者操作與部署指南 |

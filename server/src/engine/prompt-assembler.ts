@@ -64,7 +64,7 @@ export class PromptAssembler {
           if (msg.parsedContent.toolCalls.length > 0) {
             responseText += '\n\nInitiated tool calls:';
             for (const call of msg.parsedContent.toolCalls) {
-              responseText += `\n<tool_call name="${call.name}">\n${JSON.stringify(call.arguments, null, 2)}\n</tool_call>`;
+              responseText += `\n<tool_call name="${call.name}" id="${call.id}">\n${JSON.stringify(call.arguments, null, 2)}\n</tool_call>`;
             }
           }
           formattedParts.push(responseText);

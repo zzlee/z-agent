@@ -15,7 +15,6 @@ import { ReadTool } from '../tools/read.js';
 import { WriteTool } from '../tools/write.js';
 import { EditTool } from '../tools/edit.js';
 import { BashTool } from '../tools/bash.js';
-import { SearchTool } from '../tools/search.js';
 import { PromptAssembler, AssembledPrompt } from './prompt-assembler.js';
 import { ResponseParser } from './response-parser.js';
 import { DependencyPlanner } from './dependency-planner.js';
@@ -38,11 +37,6 @@ export class AgentEngine {
   private planner = new DependencyPlanner();
   
   private promptTemplate = `You are a skilled coding assistant. You help the user with programming tasks by reading, writing, and editing files, and executing commands.
-
-## Environment
-- Working directory: {cwd}
-- Current date: {date}
-- Operating System: {os}
 
 ## Crucial Guidelines (Strict Compliance Required)
 1. **Tool Call Formatting**: To use a tool, you MUST include a tool_call block in your response:
@@ -81,10 +75,9 @@ export class AgentEngine {
     this.registerTool(new WriteTool());
     this.registerTool(new EditTool());
     this.registerTool(new BashTool());
-    this.registerTool(new SearchTool());
 
     // 篩選啟用的工具
-    const enabledNames = new Set(session.settings.enabledTools || ['read', 'write', 'edit', 'bash', 'search']);
+    const enabledNames = new Set(session.settings.enabledTools || ['read', 'write', 'edit', 'bash']);
     this.state.tools = Array.from(this.toolsMap.values())
       .filter(t => enabledNames.has(t.definition.name))
       .map(t => t.definition);

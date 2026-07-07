@@ -31,7 +31,7 @@ export class DependencyPlanner {
    * 判斷某工具是否為讀取型操作
    */
   private isReadOperation(toolName: string): boolean {
-    return toolName === 'read' || toolName === 'search';
+    return toolName === 'read';
   }
 
   /**

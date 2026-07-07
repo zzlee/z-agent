@@ -139,6 +139,6 @@ describe('PromptAssembler', () => {
     const result = assembler.assemble(mockSession, [], tools, template);
     expect(result.fullText).toContain('CWD=/test/dir');
     expect(result.fullText).toContain('read a file');
-    expect(result.fullText).toContain('**path** (string, 必填)');
+    expect(result.fullText).toContain('**path** (string, required): the path');
   });
 });
