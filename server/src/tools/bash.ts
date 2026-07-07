@@ -26,12 +26,19 @@ export class BashTool implements AgentTool {
     promptSnippet: 'bash: Run a bash command in the working directory'
   };
 
-  private blacklist: string[] = [];
+  private blacklist: RegExp[] = [
+    /^sudo\b/,
+    /^su\b/,
+    /^rm\s+-rf\s+\//,
+    /\bnano\b/,
+    /\bvi\b(?!\w)/,
+    /\bvim\b/,
+  ];
   private shellPath: string;
 
   constructor(customBlacklist?: string[]) {
     if (customBlacklist) {
-      this.blacklist = customBlacklist;
+      this.blacklist = customBlacklist.map(b => new RegExp(b.startsWith('^') ? b : `\\b${b}\\b`));
     }
     this.shellPath = BashTool.resolveShellPath();
   }
@@ -60,7 +67,7 @@ export class BashTool implements AgentTool {
       const commandPreview = command.length > 120 ? command.slice(0, 120) + '…' : command;
       console.log(`[BashTool:${traceId}] ▶ cwd: ${resolvedCwd} | shell: ${this.shellPath} | cmd: ${commandPreview}`);
 
-      const isDangerous = this.blacklist.some(b => command.includes(b));
+      const isDangerous = this.blacklist.some(pattern => pattern.test(command));
       if (isDangerous) {
         console.warn(`[BashTool:${traceId}] ✗ BLOCKED: ${commandPreview}`);
         throw new Error(`安全性拒絕：偵測到命令包含禁止執行的關鍵字（例如 sudo、rm -rf /、互動編輯器等）。`);
