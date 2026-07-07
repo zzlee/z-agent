@@ -15,6 +15,7 @@ import { ReadTool } from '../tools/read.js';
 import { WriteTool } from '../tools/write.js';
 import { EditTool } from '../tools/edit.js';
 import { BashTool } from '../tools/bash.js';
+import { McpTool } from '../tools/mcp.js';
 import { PromptAssembler, AssembledPrompt } from './prompt-assembler.js';
 import { ResponseParser } from './response-parser.js';
 import { DependencyPlanner } from './dependency-planner.js';
@@ -77,9 +78,10 @@ export class AgentEngine {
     this.registerTool(new WriteTool());
     this.registerTool(new EditTool());
     this.registerTool(new BashTool());
+    this.registerTool(new McpTool());
 
     // 篩選啟用的工具
-    const enabledNames = new Set(session.settings.enabledTools || ['read', 'write', 'edit', 'bash']);
+    const enabledNames = new Set(session.settings.enabledTools || ['read', 'write', 'edit', 'bash', 'mcp']);
     this.state.tools = Array.from(this.toolsMap.values())
       .filter(t => enabledNames.has(t.definition.name))
       .map(t => t.definition);
@@ -94,10 +96,46 @@ export class AgentEngine {
   }
 
   /**
+   * 遞迴掃描 skills 目錄並讀取 SKILL.md
+   */
+  private async loadAgentSkills(): Promise<string> {
+    const skillsDir = join(this.state.workingDirectory, 'skills');
+    let skillsContent = '';
+
+    try {
+      const stats = await fs.stat(skillsDir);
+      if (!stats.isDirectory()) return '';
+
+      const scanDir = async (dir: string) => {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await scanDir(fullPath);
+          } else if (entry.name === 'SKILL.md') {
+            try {
+              const content = await fs.readFile(fullPath, 'utf8');
+              skillsContent += `\n### Skill: ${fullPath.replace(this.state.workingDirectory, '')}\n\n${content}\n`;
+            } catch (err) {
+              console.warn(`Failed to read skill file: ${fullPath}`, err);
+            }
+          }
+        }
+      };
+
+      await scanDir(skillsDir);
+    } catch (err) {
+      // 目錄不存在則忽略
+    }
+
+    return skillsContent;
+  }
+
+  /**
    * 產生要發送給 LLM 的提示詞
    */
   async assemblePrompt(): Promise<AssembledPrompt> {
-    let agentsMdContent: string | undefined;
+    let agentsMdContent = '';
 
     // 嘗試讀取 agents.md 或 AGENTS.md
     const mdPaths = [
@@ -113,6 +151,15 @@ export class AgentEngine {
         // 檔案不存在或讀取失敗則忽略，嘗試下一個
       }
     }
+
+    // 讀取 Agent Skills
+    const skillsContent = await this.loadAgentSkills();
+    if (skillsContent) {
+      agentsMdContent += `\n\n## Agent Skills\n${skillsContent}`;
+    }
+
+    // 只有在真的有內容時才傳遞字串
+    const finalAgentsMdContent = agentsMdContent.trim() ? agentsMdContent : undefined;
 
     const assembled = this.assembler.assemble(
       {
@@ -133,7 +180,7 @@ export class AgentEngine {
       this.state.messages,
       this.state.tools,
       this.promptTemplate,
-      agentsMdContent
+      finalAgentsMdContent
     );
 
     this.state.currentPhase = 'waiting_for_llm';
