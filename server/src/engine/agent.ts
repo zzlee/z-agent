@@ -18,6 +18,8 @@ import { BashTool } from '../tools/bash.js';
 import { PromptAssembler, AssembledPrompt } from './prompt-assembler.js';
 import { ResponseParser } from './response-parser.js';
 import { DependencyPlanner } from './dependency-planner.js';
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 
 export interface AgentState {
   sessionId: string;
@@ -94,7 +96,24 @@ export class AgentEngine {
   /**
    * 產生要發送給 LLM 的提示詞
    */
-  assemblePrompt(): AssembledPrompt {
+  async assemblePrompt(): Promise<AssembledPrompt> {
+    let agentsMdContent: string | undefined;
+
+    // 嘗試讀取 agents.md 或 AGENTS.md
+    const mdPaths = [
+      join(this.state.workingDirectory, 'agents.md'),
+      join(this.state.workingDirectory, 'AGENTS.md')
+    ];
+
+    for (const p of mdPaths) {
+      try {
+        agentsMdContent = await fs.readFile(p, 'utf8');
+        break; // 讀取成功即跳出
+      } catch {
+        // 檔案不存在或讀取失敗則忽略，嘗試下一個
+      }
+    }
+
     const assembled = this.assembler.assemble(
       {
         id: this.state.sessionId,
@@ -113,7 +132,8 @@ export class AgentEngine {
       },
       this.state.messages,
       this.state.tools,
-      this.promptTemplate
+      this.promptTemplate,
+      agentsMdContent
     );
 
     this.state.currentPhase = 'waiting_for_llm';

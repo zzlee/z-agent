@@ -99,7 +99,8 @@ export class PromptAssembler {
     session: Session,
     messages: Message[],
     tools: ToolDefinition[],
-    templateContent: string
+    templateContent: string,
+    agentsMdContent?: string
   ): AssembledPrompt {
     const cwd = session.workingDirectory;
     const date = new Date().toISOString().split('T')[0];
@@ -108,11 +109,15 @@ export class PromptAssembler {
     const toolDescriptions = this.generateToolDescriptions(tools);
 
     // 1. 組裝系統提示詞
-    const systemPrompt = templateContent
+    let systemPrompt = templateContent
       .replace(/{cwd}/g, cwd)
       .replace(/{date}/g, date)
       .replace(/{os}/g, os)
       .replace(/{tool_descriptions}/g, toolDescriptions);
+
+    if (agentsMdContent) {
+      systemPrompt += `\n\n## Workspace Instructions (agents.md)\n\n${agentsMdContent}`;
+    }
 
     // 2. 歷史與最新請求分離
     // 我們將最後一個訊息視為「當前請求」（除非它是 assembled_prompt 或 system_notice 等）

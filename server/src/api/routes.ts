@@ -93,7 +93,7 @@ export function createRouter(
         engine.setPromptTemplate(templateContent);
       }
 
-      const prompt = engine.assemblePrompt();
+      const prompt = await engine.assemblePrompt();
       
       // 更新 Session 的目前狀態為 waiting_for_llm
       session.updatedAt = Date.now();
@@ -268,7 +268,8 @@ export function createRouter(
       }
       const messages = await sessionManager.getMessages(id);
       const engine = new AgentEngine(session, messages);
-      const formattedHistory = engine.assemblePrompt().sections.conversationHistory;
+      const assembled = await engine.assemblePrompt();
+      const formattedHistory = assembled.sections.conversationHistory;
 
       const prompt = `You are currently assisting the user with programming tasks. Due to the conversation history being too long, we need to compress it to save context space.
 Please summarize the conversation history below into a concise "Current Status & Accomplishments Summary".
