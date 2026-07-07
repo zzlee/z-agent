@@ -78,6 +78,15 @@ function init() {
   el.btnConfirmModal.onclick = handleCreateSession;
   el.btnCopyPrompt.onclick = handleCopy;
   el.btnSubmitResponse.onclick = handleSubmitResponse;
+
+  // Auto-submit on paste
+  el.responseTextarea.addEventListener('paste', () => {
+    // Wait for the pasted text to actually populate the textarea
+    setTimeout(() => {
+      handleSubmitResponse();
+    }, 50);
+  });
+
   el.btnPromptTabFull.onclick = () => switchTab('full');
   el.btnPromptTabLatest.onclick = () => switchTab('latest');
   el.btnCopyToolResult.onclick = handleCopyResult;
@@ -184,6 +193,10 @@ function showEnvInfo(workingDir) {
   el.tokenBadge.innerText = '';
   el.btnPromptTabFull.style.display = 'none';
   el.btnPromptTabLatest.style.display = 'none';
+
+  // Auto-copy env text
+  copyToClipboard(envText);
+  flashBtn(el.btnCopyPrompt, '✅ 已自動複製！');
 }
 
 async function showPrompt() {
@@ -238,6 +251,10 @@ async function executeToolCalls(plan) {
     el.toolResultTextarea.value = formatted;
     el.toolResultCard.classList.remove('hidden');
 
+    // Auto-copy tool result
+    copyToClipboard(formatted);
+    flashBtn(el.btnCopyToolResult, '✅ 已自動複製！');
+
     // 更新歷程
     try {
       const data = await api.getSessionDetails(currentSessionId);
@@ -261,15 +278,41 @@ async function executeToolCalls(plan) {
   }
 }
 
+async function copyToClipboard(text) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      // Fallback for older browsers or insecure contexts
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      // Avoid scrolling to bottom
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+      }
+      document.body.removeChild(textArea);
+    }
+  } catch (err) {
+    console.error('Failed to copy text: ', err);
+  }
+}
+
 function handleCopy() {
-  el.promptTextarea.select();
-  document.execCommand('copy');
+  copyToClipboard(el.promptTextarea.value);
   flashBtn(el.btnCopyPrompt, '✅ 已複製！');
 }
 
 function handleCopyResult() {
-  el.toolResultTextarea.select();
-  document.execCommand('copy');
+  copyToClipboard(el.toolResultTextarea.value);
   flashBtn(el.btnCopyToolResult, '✅ 已複製！');
 }
 
@@ -284,14 +327,21 @@ function switchTab(tab) {
   activePromptTab = tab;
   [el.btnPromptTabFull, el.btnPromptTabLatest].forEach(b => { b.style.borderColor = ''; b.style.color = ''; });
 
+  let textToCopy = '';
   if (tab === 'full') {
     el.btnPromptTabFull.style.borderColor = 'var(--accent-color)';
     el.btnPromptTabFull.style.color = 'var(--accent-color)';
-    el.promptTextarea.value = promptData?.fullText || '';
+    textToCopy = promptData?.fullText || '';
   } else {
     el.btnPromptTabLatest.style.borderColor = 'var(--accent-color)';
     el.btnPromptTabLatest.style.color = 'var(--accent-color)';
-    el.promptTextarea.value = promptData?.sections?.currentRequest || promptData?.fullText || '';
+    textToCopy = promptData?.sections?.currentRequest || promptData?.fullText || '';
+  }
+  el.promptTextarea.value = textToCopy;
+
+  if (textToCopy) {
+    copyToClipboard(textToCopy);
+    flashBtn(el.btnCopyPrompt, '✅ 已自動複製！');
   }
 }
 
