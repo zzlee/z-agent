@@ -47,8 +47,18 @@ export class ReadTool implements AgentTool {
 
       const lines = rawContent.split(/\r?\n/);
       const startIdx = Math.max(0, offset - 1);
-      const endIdx = limit !== undefined ? startIdx + limit : lines.length;
       
+      if (startIdx >= lines.length) {
+        return {
+          toolCallId,
+          isError: false,
+          content: `Offset ${offset} is beyond end of file (${lines.length} lines total)`,
+          details: { linesRead: 0, totalLines: lines.length, offset, limit },
+          executionTimeMs: Date.now() - startTime
+        };
+      }
+      
+      const endIdx = limit !== undefined ? startIdx + limit : lines.length;
       const sliceLines = lines.slice(startIdx, endIdx);
       
       // 加上行號標記方便編輯與對照

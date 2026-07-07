@@ -25,6 +25,13 @@
       </header>
 
       <div class="relay-layout">
+        <section class="history-column">
+          <div class="card" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="card-title">🛠️ 工具調用與執行歷程</div>
+            <div id="historyLog" class="history-log-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">暫無歷程紀錄</div>
+          </div>
+        </section>
+
         <section class="relay-flow">
           <!-- 提示詞輸出 -->
           <div id="promptCard" class="card hidden">

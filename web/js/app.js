@@ -27,6 +27,8 @@ const el = {
   toolResultTextarea: document.getElementById('toolResultTextarea'),
   btnCopyToolResult: document.getElementById('btnCopyToolResult'),
 
+  historyLog: document.getElementById('historyLog'),
+
   connectionDot: document.getElementById('connectionDot'),
   connectionText: document.getElementById('connectionText'),
   phaseDot: document.getElementById('phaseDot'),
@@ -137,6 +139,7 @@ async function refresh() {
     el.statusOs.innerText = navigator.platform;
 
     const msgs = data.messages;
+    renderHistoryLog(msgs);
 
     if (msgs.length === 0) {
       // 新會話：顯示環境資訊（工作目錄、日期、OS）
@@ -234,6 +237,12 @@ async function executeToolCalls(plan) {
 
     el.toolResultTextarea.value = formatted;
     el.toolResultCard.classList.remove('hidden');
+
+    // 更新歷程
+    try {
+      const data = await api.getSessionDetails(currentSessionId);
+      renderHistoryLog(data.messages);
+    } catch (_) {}
 
     // 載入下一輪的提示詞
     try {
@@ -345,6 +354,48 @@ function resetUI() {
   hideAllCards();
   updatePhase('idle', '閒置');
   el.statusSessionId.innerText = '-';
+}
+
+function renderHistoryLog(messages) {
+  if (!el.historyLog) return;
+  if (!messages || messages.length === 0) {
+    el.historyLog.innerHTML = '<div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 20px 0;">暫無歷程紀錄</div>';
+    return;
+  }
+
+  let html = '';
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      html += entryHtml('user', 'badge-user', '👤 使用者', msg.content);
+    } else if (msg.role === 'tool_call') {
+      const args = JSON.stringify(msg.arguments || {});
+      html += entryHtml('tool-call', 'badge-tool-call', '⚡ ' + msg.toolName, args);
+    } else if (msg.role === 'tool_result') {
+      const label = msg.isError ? '❌ ' + msg.toolName : '✅ ' + msg.toolName;
+      const badge = msg.isError ? 'badge-tool-error' : 'badge-tool-result';
+      const content = msg.content ? msg.content.slice(0, 300) : '(無輸出)';
+      html += entryHtml('tool-result', badge, label, content);
+    } else if (msg.role === 'llm_response') {
+      const tcs = msg.parsedContent?.toolCalls || [];
+      const tcSummary = tcs.length > 0 ? ' [' + tcs.map(t => t.name).join(', ') + ']' : '';
+      html += entryHtml('llm', 'badge-llm', '🤖 LLM 回應' + tcSummary, '');
+    }
+  }
+
+  el.historyLog.innerHTML = html;
+
+  // 自動滾到底部
+  el.historyLog.scrollTop = el.historyLog.scrollHeight;
+}
+
+function entryHtml(cls, badgeCls, label, content) {
+  const safeContent = escapeHtml(content || '');
+  const isLong = safeContent.length > 200;
+  const wrapperCls = isLong ? 'entry-content expandable' : 'entry-content';
+  return '<div class="history-entry">'
+    + '<div class="entry-header"><span class="badge ' + badgeCls + '">' + label + '</span></div>'
+    + '<div class="' + wrapperCls + '" onclick="this.classList.toggle(\'expanded\')">' + safeContent + '</div>'
+    + '</div>';
 }
 
 function escapeHtml(text) {

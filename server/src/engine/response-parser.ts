@@ -94,6 +94,12 @@ export class ResponseParser {
   private repairJSON(str: string): Record<string, any> | null {
     // 嘗試多種修復策略
     const strategies = [
+      // 策略 0：修復未加引號的 key（LLM 常漏掉 key 的引號）
+      // 例如：{Downing:"latest"} → {"Downing":"latest"}
+      () => {
+        const s = str.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+        return JSON.parse(s);
+      },
       // 策略 1：對字串值內的所有引號進行跳脫
       () => this.escapeInnerQuotes(str),
       // 策略 2：將最外層的雙引號替換為單引號（僅對簡單情況有效）
