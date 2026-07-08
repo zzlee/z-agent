@@ -57,12 +57,6 @@ describe('ReadTool', () => {
     expect(result.content).toContain('讀取檔案失敗');
   });
 
-  it('路徑穿越攻擊應該被拒絕', async () => {
-    const result = await tool.execute(toolCallId + '_read4', { path: '../../etc/passwd' }, testDir);
-    expect(result.isError).toBe(true);
-    expect(result.content).toContain('存取拒絕');
-  });
-
   it('缺少 path 參數應該回傳錯誤', async () => {
     const result = await tool.execute(toolCallId + '_read5', {}, testDir);
     expect(result.isError).toBe(true);
@@ -112,12 +106,6 @@ describe('WriteTool', () => {
   it('缺少 path 參數應該回傳錯誤', async () => {
     const result = await tool.execute(toolCallId + '_w5', { content: 'no path' }, testDir);
     expect(result.isError).toBe(true);
-  });
-
-  it('路徑穿越攻擊應該被拒絕', async () => {
-    const result = await tool.execute(toolCallId + '_w6', { path: '../../outside.txt', content: 'hack' }, testDir);
-    expect(result.isError).toBe(true);
-    expect(result.content).toContain('存取拒絕');
   });
 });
 

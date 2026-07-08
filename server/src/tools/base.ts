@@ -1,4 +1,4 @@
-import { resolve, relative, isAbsolute } from 'node:path';
+import { resolve, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { ToolDefinition, ToolResult } from '../types.js';
 
@@ -18,21 +18,15 @@ export function expandTilde(path: string): string {
 }
 
 /**
- * 確保目標路徑在工作目錄內，防止目錄穿越攻擊
+ * 處理路徑，支援絕對路徑與相對於工作目錄的路徑
  */
-export function resolveSafePath(workingDir: string, targetPath: string): string {
+export function resolvePath(workingDir: string, targetPath: string): string {
   // 先展開 tilde，避免 resolve 將 ~ 視為字面目錄名稱
   const expandedCwd = expandTilde(workingDir);
-  const absoluteWorkingDir = resolve(expandedCwd);
+
   const absoluteTargetPath = isAbsolute(targetPath) 
     ? resolve(targetPath) 
     : resolve(expandedCwd, targetPath);
-
-  const relativePath = relative(absoluteWorkingDir, absoluteTargetPath);
-  
-  // if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
-  //   throw new Error(`存取拒絕：路徑 "${targetPath}" 超出工作目錄 "${workingDir}" 的範圍。`);
-  // }
   
   return absoluteTargetPath;
 }

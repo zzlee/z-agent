@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
-import { AgentTool, resolveSafePath } from './base.js';
+import { AgentTool, resolvePath } from './base.js';
 import { ToolDefinition, ToolResult } from '../types.js';
 
 export class WriteTool implements AgentTool {
@@ -12,7 +12,7 @@ export class WriteTool implements AgentTool {
       properties: {
         path: {
           type: 'string',
-          description: 'The path of the file to write (relative to the working directory).'
+          description: 'The path of the file to write (can be absolute or relative to the working directory).'
         },
         content: {
           type: 'string',
@@ -33,7 +33,7 @@ export class WriteTool implements AgentTool {
         throw new Error('未提供必填參數 "path" 或 "content"');
       }
 
-      const safePath = resolveSafePath(workingDir, path);
+      const safePath = resolvePath(workingDir, path);
       const parentDir = dirname(safePath);
 
       // 自動建立不存在的父目錄
