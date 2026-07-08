@@ -30,9 +30,9 @@ export function resolveSafePath(workingDir: string, targetPath: string): string 
 
   const relativePath = relative(absoluteWorkingDir, absoluteTargetPath);
   
-  // if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
-  //   throw new Error(`存取拒絕：路徑 "${targetPath}" 超出工作目錄 "${workingDir}" 的範圍。`);
-  // }
+  if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
+    throw new Error(`存取拒絕：路徑 "${targetPath}" 超出工作目錄 "${workingDir}" 的範圍。`);
+  }
   
   return absoluteTargetPath;
 }

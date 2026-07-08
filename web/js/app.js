@@ -154,7 +154,7 @@ async function refresh() {
     if (msgs.length === 0) {
       // 新會話：顯示環境資訊（工作目錄、日期、OS）
       hideAllCards();
-      showEnvInfo(data.session.workingDirectory);
+      await showPrompt();
       updatePhase('idle', '複製環境資訊給 LLM 後開始對話');
     } else {
       const last = msgs[msgs.length - 1];
