@@ -8,6 +8,11 @@ export interface AssembledPrompt {
     conversationHistory: string;
     currentRequest: string;
   };
+  promptSources: {
+    systemPrompt: string;
+    agentsMd?: string;
+    skills?: string;
+  };
   estimatedTokens: number;
 }
 
@@ -100,7 +105,8 @@ export class PromptAssembler {
     messages: Message[],
     tools: ToolDefinition[],
     templateContent: string,
-    agentsMdContent?: string
+    agentsMdContent?: string,
+    skillsContent?: string
   ): AssembledPrompt {
     const cwd = session.workingDirectory;
     const date = new Date().toISOString().split('T')[0];
@@ -108,16 +114,15 @@ export class PromptAssembler {
     
     const toolDescriptions = this.generateToolDescriptions(tools);
 
-    // 1. 組裝系統提示詞
+    // 1. 組裝系統提示詞（不含 AGENTS.md 與 Skills，它們獨立顯示）
     let systemPrompt = templateContent
       .replace(/{cwd}/g, cwd)
       .replace(/{date}/g, date)
       .replace(/{os}/g, os)
       .replace(/{tool_descriptions}/g, toolDescriptions);
 
-    if (agentsMdContent) {
-      systemPrompt += `\n\n## Workspace Instructions (agents.md)\n\n${agentsMdContent}`;
-    }
+    const hasAgentsMd = !!agentsMdContent;
+    const hasSkills = !!skillsContent;
 
     // 2. 歷史與最新請求分離
     // 我們將最後一個訊息視為「當前請求」（除非它是 assembled_prompt 或 system_notice 等）
@@ -146,6 +151,8 @@ export class PromptAssembler {
     // 3. 組合全文
     const fullTextParts = [
       systemPrompt,
+      agentsMdContent ? `--- AGENTS.md ---\n\n${agentsMdContent}` : '',
+      skillsContent ? `--- SKILLS ---\n\n${skillsContent}` : '',
       conversationHistory ? `--- CONVERSATION HISTORY & CONTEXT ---\n\n${conversationHistory}` : '',
       currentRequest ? `--- CURRENT STATUS / LATEST RESULTS ---\n\n${currentRequest}\n\nPlease proceed based on the latest status above, or reply with your final answer.` : ''
     ].filter(Boolean);
@@ -160,6 +167,11 @@ export class PromptAssembler {
         toolDescriptions,
         conversationHistory,
         currentRequest
+      },
+      promptSources: {
+        systemPrompt,
+        ...(hasAgentsMd ? { agentsMd: agentsMdContent } : {}),
+        ...(hasSkills ? { skills: skillsContent } : {})
       },
       estimatedTokens
     };

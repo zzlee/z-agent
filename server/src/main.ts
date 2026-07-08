@@ -6,6 +6,7 @@ import { SessionManager } from './session/session-manager.js';
 import { WebSocketManager } from './api/websocket.js';
 import { createRouter } from './api/routes.js';
 import { GlobalConfig } from './types.js';
+import { expandTilde } from './tools/base.js';
 
 async function bootstrap() {
   const app = express();
@@ -38,8 +39,11 @@ async function bootstrap() {
     };
   }
 
+  // 展開預設工作目錄中的 tilde
+  const defaultWd = expandTilde(config.defaults.workingDirectory);
+
   // 確保工作目錄與資料儲存目錄存在
-  await fs.mkdir(config.defaults.workingDirectory, { recursive: true });
+  await fs.mkdir(defaultWd, { recursive: true });
   await fs.mkdir('./data/sessions', { recursive: true });
 
   // 初始化元件
@@ -64,7 +68,7 @@ async function bootstrap() {
   server.listen(port, host, () => {
     const displayHost = host === '0.0.0.0' ? 'localhost' : host;
     console.log(`================ Z-Agent 啟動完成 ================`);
-    console.log(`  工作目錄: ${resolve(config.defaults.workingDirectory)}`);
+    console.log(`  工作目錄: ${resolve(defaultWd)}`);
     console.log(`  資料目錄: ${resolve('./data')}`);
     console.log(`  Web 介面: http://${displayHost}:${port} (已綁定所有網路介面)`);
     console.log(`=================================================`);

@@ -1,5 +1,6 @@
 import { Session, SessionSettings, Message } from '../types.js';
 import { SessionStore } from './session-store.js';
+import { expandTilde } from '../tools/base.js';
 import crypto from 'node:crypto';
 
 export class SessionManager {
@@ -34,12 +35,14 @@ export class SessionManager {
       ...settings
     };
 
+    const expandedWd = expandTilde(workingDirectory);
+
     const session: Session = {
       id,
       name: name || `會話 - ${new Date().toLocaleString()}`,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      workingDirectory,
+      workingDirectory: expandedWd,
       status: 'active',
       settings: defaultSettings
     };
@@ -88,46 +91,5 @@ export class SessionManager {
    */
   async deleteSession(sessionId: string): Promise<void> {
     await this.store.deleteSession(sessionId);
-  }
-
-  /**
-   * 從特定歷史訊息位置 (messageId) 分支出一個新的會話
-   */
-  async branchSession(
-    parentSessionId: string, 
-    messageId: string, 
-    newBranchName: string
-  ): Promise<Session> {
-    const parentSession = await this.getSession(parentSessionId);
-    if (!parentSession) {
-      throw new Error(`找不到父會話: ${parentSessionId}`);
-    }
-
-    const messages = await this.getMessages(parentSessionId);
-    const msgIdx = messages.findIndex(m => m.id === messageId);
-    if (msgIdx === -1) {
-      throw new Error(`在父會話中找不到目標訊息 ID: ${messageId}`);
-    }
-
-    // 截取目標訊息之前的歷史（包含目標訊息本身）
-    const branchMessages = messages.slice(0, msgIdx + 1);
-
-    // 建立新會話，繼承父會話屬性
-    const branchedSession = await this.createSession(
-      newBranchName || `${parentSession.name} - 分支`,
-      parentSession.workingDirectory,
-      parentSession.settings
-    );
-
-    // 將截取的訊息寫入新會話，並將它們的 sessionId 重新設定
-    const updatedMessages = branchMessages.map(m => ({
-      ...m,
-      sessionId: branchedSession.id,
-      parentId: parentSessionId // 紀錄來源會話
-    }));
-
-    await this.overwriteMessages(branchedSession.id, updatedMessages);
-
-    return branchedSession;
   }
 }

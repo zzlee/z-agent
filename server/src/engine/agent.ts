@@ -10,7 +10,7 @@ import {
   ExecutionProgress, 
   LLMResponseMessage 
 } from '../types.js';
-import { AgentTool } from '../tools/base.js';
+import { AgentTool, expandTilde } from '../tools/base.js';
 import { ReadTool } from '../tools/read.js';
 import { WriteTool } from '../tools/write.js';
 import { EditTool } from '../tools/edit.js';
@@ -70,7 +70,7 @@ export class AgentEngine {
       systemPromptTemplate: session.settings.systemPromptTemplate || 'coding-assistant',
       tools: [],
       currentPhase: 'idle',
-      workingDirectory: session.workingDirectory
+      workingDirectory: expandTilde(session.workingDirectory)
     };
 
     // 初始化預設工具
@@ -135,7 +135,7 @@ export class AgentEngine {
    * 產生要發送給 LLM 的提示詞
    */
   async assemblePrompt(): Promise<AssembledPrompt> {
-    let agentsMdContent = '';
+    let agentsMdContent: string | undefined;
 
     // 嘗試讀取 agents.md 或 AGENTS.md
     const mdPaths = [
@@ -154,12 +154,7 @@ export class AgentEngine {
 
     // 讀取 Agent Skills
     const skillsContent = await this.loadAgentSkills();
-    if (skillsContent) {
-      agentsMdContent += `\n\n## Agent Skills\n${skillsContent}`;
-    }
-
-    // 只有在真的有內容時才傳遞字串
-    const finalAgentsMdContent = agentsMdContent.trim() ? agentsMdContent : undefined;
+    const finalSkillsContent = skillsContent.trim() ? skillsContent : undefined;
 
     const assembled = this.assembler.assemble(
       {
@@ -180,7 +175,8 @@ export class AgentEngine {
       this.state.messages,
       this.state.tools,
       this.promptTemplate,
-      finalAgentsMdContent
+      agentsMdContent,
+      finalSkillsContent
     );
 
     this.state.currentPhase = 'waiting_for_llm';

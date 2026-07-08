@@ -11,6 +11,9 @@ export interface AgentTool {
  * 展開路徑中的 tilde (~) 為使用者家目錄
  */
 export function expandTilde(path: string): string {
+  if (path === '~') {
+    return homedir();
+  }
   if (path.startsWith('~/')) {
     return homedir() + path.slice(1);
   }
@@ -23,10 +26,11 @@ export function expandTilde(path: string): string {
 export function resolvePath(workingDir: string, targetPath: string): string {
   // 先展開 tilde，避免 resolve 將 ~ 視為字面目錄名稱
   const expandedCwd = expandTilde(workingDir);
+  const expandedTarget = expandTilde(targetPath);
 
-  const absoluteTargetPath = isAbsolute(targetPath) 
-    ? resolve(targetPath) 
-    : resolve(expandedCwd, targetPath);
+  const absoluteTargetPath = isAbsolute(expandedTarget) 
+    ? resolve(expandedTarget) 
+    : resolve(expandedCwd, expandedTarget);
   
   return absoluteTargetPath;
 }
