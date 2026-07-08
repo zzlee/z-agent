@@ -35,6 +35,7 @@ const el = {
   statusOs: document.getElementById('statusOs'),
   statusSessionId: document.getElementById('statusSessionId'),
 
+  toolExecutionLoader: document.getElementById('toolExecutionLoader'),
   newSessionModal: document.getElementById('newSessionModal'),
   inputSessionName: document.getElementById('inputSessionName'),
   inputSessionCwd: document.getElementById('inputSessionCwd'),
@@ -245,7 +246,17 @@ async function handleSubmitResponse() {
 async function executeToolCalls(plan) {
   if (!plan) return;
   updatePhase('running', '正在執行工具...');
+
+  let loaderTimeout = null;
+
   try {
+    // 啟動超過 2 秒顯示 loading 的 timer
+    loaderTimeout = setTimeout(() => {
+      if (el.toolExecutionLoader) {
+        el.toolExecutionLoader.classList.remove('hidden');
+      }
+    }, 2000);
+
     const results = await api.executePlan(currentSessionId, plan);
     const formatted = results.map(r => {
       const obj = { toolCallId: r.toolCallId, status: r.isError ? 'error' : 'success', content: r.content };
@@ -278,6 +289,13 @@ async function executeToolCalls(plan) {
   } catch (e) {
     alert('執行失敗: ' + e.message);
     updatePhase('idle', '閒置');
+  } finally {
+    if (loaderTimeout) {
+      clearTimeout(loaderTimeout);
+    }
+    if (el.toolExecutionLoader) {
+      el.toolExecutionLoader.classList.add('hidden');
+    }
   }
 }
 
