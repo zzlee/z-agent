@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { AgentTool, resolveSafePath } from './base.js';
+import { AgentTool, resolvePath } from './base.js';
 import { ToolDefinition, ToolResult } from '../types.js';
 
 export class EditTool implements AgentTool {
@@ -11,7 +11,7 @@ export class EditTool implements AgentTool {
       properties: {
         path: {
           type: 'string',
-          description: 'The path of the file to modify (relative to the working directory).'
+          description: 'The path of the file to modify (can be absolute or relative to the working directory).'
         },
         old_string: {
           type: 'string',
@@ -36,7 +36,7 @@ export class EditTool implements AgentTool {
         throw new Error('未提供必填參數 "path", "old_string" 或 "new_string"');
       }
 
-      const safePath = resolveSafePath(workingDir, path);
+      const safePath = resolvePath(workingDir, path);
       
       let rawContent: string;
       try {

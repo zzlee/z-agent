@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { AgentTool, resolveSafePath, truncateContent } from './base.js';
+import { AgentTool, resolvePath, truncateContent } from './base.js';
 import { ToolDefinition, ToolResult } from '../types.js';
 
 export class ReadTool implements AgentTool {
@@ -11,7 +11,7 @@ export class ReadTool implements AgentTool {
       properties: {
         path: {
           type: 'string',
-          description: 'The path of the file to read (relative to the working directory).'
+          description: 'The path of the file to read (can be absolute or relative to the working directory).'
         },
         offset: {
           type: 'number',
@@ -36,7 +36,7 @@ export class ReadTool implements AgentTool {
         throw new Error('未提供必填參數 "path"');
       }
 
-      const safePath = resolveSafePath(workingDir, path);
+      const safePath = resolvePath(workingDir, path);
       
       let rawContent: string;
       try {

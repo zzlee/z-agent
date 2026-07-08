@@ -7,7 +7,7 @@ import { AgentTool, truncateContent, expandTilde } from './base.js';
 export class BashTool implements AgentTool {
   definition: ToolDefinition = {
     name: 'bash',
-    description: 'Executes a bash command in the project working directory. The command must be non-interactive (avoid commands waiting for user inputs).',
+    description: 'Executes a bash command in the working directory. The command must be non-interactive (avoid commands waiting for user inputs).',
     parameters: {
       type: 'object',
       properties: {
