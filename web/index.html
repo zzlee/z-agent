@@ -44,10 +44,10 @@
               <span id="tokenBadge" class="badge-tokens">0 Tokens</span>
             </div>
             <div class="prompt-tabs" style="display: flex; gap: 6px; margin-bottom: 4px;">
-              <button id="btnTabSystem" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">📋 系統提示詞</button>
+              <button id="btnTabSystem" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">📋 預設提示詞</button>
               <button id="btnTabAgents" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem; display: none;">📄 AGENTS.md</button>
-              <button id="btnTabSkills" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem; display: none;">⚡ Skills</button>
-              <button id="btnTabFull" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">完整提示詞</button>
+              <button id="btnTabSkills" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem; display: none;">⚡ SKILLS</button>
+              <button id="btnTabCopyBack" class="btn-secondary" style="flex: 1; padding: 6px; font-size: 0.75rem;">📤 複製回 LLM</button>
             </div>
             <textarea id="promptTextarea" class="prompt-textarea" readonly></textarea>
             <button id="btnCopyPrompt" class="btn-primary">📋 複製</button>
@@ -60,12 +60,6 @@
             <button id="btnSubmitResponse" class="btn-primary">▶ 提交</button>
           </div>
 
-          <!-- 工具執行結果 -->
-          <div id="toolResultCard" class="card hidden">
-            <div class="card-title">📤 執行結果 — 複製回 LLM</div>
-            <textarea id="toolResultTextarea" class="prompt-textarea" style="height: 120px;" readonly></textarea>
-            <button id="btnCopyToolResult" class="btn-primary">📋 複製</button>
-          </div>
         </section>
       </div>
     </main>

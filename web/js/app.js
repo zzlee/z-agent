@@ -4,7 +4,8 @@ const api = new ApiClient();
 let currentSessionId = null;
 let sessions = [];
 let promptData = null;
-let activePromptTab = 'latest';
+let activePromptTab = 'copyBack';
+let copyBackContent = '';
 
 const el = {
   sessionList: document.getElementById('sessionList'),
@@ -16,7 +17,7 @@ const el = {
   btnTabSystem: document.getElementById('btnTabSystem'),
   btnTabAgents: document.getElementById('btnTabAgents'),
   btnTabSkills: document.getElementById('btnTabSkills'),
-  btnTabFull: document.getElementById('btnTabFull'),
+  btnTabCopyBack: document.getElementById('btnTabCopyBack'),
   tokenBadge: document.getElementById('tokenBadge'),
   promptTextarea: document.getElementById('promptTextarea'),
   btnCopyPrompt: document.getElementById('btnCopyPrompt'),
@@ -24,10 +25,6 @@ const el = {
   responseCard: document.getElementById('responseCard'),
   responseTextarea: document.getElementById('responseTextarea'),
   btnSubmitResponse: document.getElementById('btnSubmitResponse'),
-
-  toolResultCard: document.getElementById('toolResultCard'),
-  toolResultTextarea: document.getElementById('toolResultTextarea'),
-  btnCopyToolResult: document.getElementById('btnCopyToolResult'),
 
   historyLog: document.getElementById('historyLog'),
 
@@ -93,8 +90,7 @@ function init() {
   el.btnTabSystem.onclick = () => switchTab('system');
   el.btnTabAgents.onclick = () => switchTab('agents');
   el.btnTabSkills.onclick = () => switchTab('skills');
-  el.btnTabFull.onclick = () => switchTab('full');
-  el.btnCopyToolResult.onclick = handleCopyResult;
+  el.btnTabCopyBack.onclick = () => switchTab('copyBack');
 
   document.onkeydown = (e) => {
     if (e.ctrlKey && e.shiftKey && e.key === 'C') {
@@ -158,12 +154,31 @@ async function refresh() {
     if (msgs.length === 0) {
       // 新會話：顯示環境資訊（工作目錄、日期、OS）
       hideAllCards();
-      // showEnvInfo(data.session.workingDirectory);
+      copyBackContent = [
+        `Working Directory: ${data.session.workingDirectory}`,
+        `Date: ${new Date().toISOString().split('T')[0]}`,
+        `OS: ${navigator.platform}`
+      ].join('\n');
+      activePromptTab = 'copyBack';
       await showPrompt();
       updatePhase('idle', '複製環境資訊給 LLM 後開始對話');
     } else {
       const last = msgs[msgs.length - 1];
       if (last.role === 'user' || last.role === 'tool_result') {
+        if (last.role === 'tool_result') {
+          // Find preceding tool results
+          let results = [];
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].role === 'tool_result') {
+              results.unshift(msgs[i]);
+            } else {
+              break;
+            }
+          }
+
+          copyBackContent = results.map(r => r.content).join('\n\n');
+        }
+        activePromptTab = 'copyBack';
         await showPrompt();
       } else if (last.role === 'llm_response') {
         const tcs = last.parsedContent?.toolCalls || [];
@@ -185,29 +200,6 @@ async function refresh() {
   }
 }
 
-/** 新會話：在提示詞框顯示工作環境資訊，讓使用者複製給 LLM */
-function showEnvInfo(workingDir) {
-  promptData = null;
-  const envText = [
-    `Working Directory: ${workingDir}`,
-    `Date: ${new Date().toISOString().split('T')[0]}`,
-    `OS: ${navigator.platform}`
-  ].join('\n');
-  el.promptCard.classList.remove('hidden');
-  el.responseCard.classList.remove('hidden');
-  el.promptTextarea.value = envText;
-  el.tokenBadge.innerText = '';
-  el.btnTabSystem.style.display = 'none';
-  el.btnTabAgents.style.display = 'none';
-  el.btnTabSkills.style.display = 'none';
-  el.btnTabFull.style.display = 'none';
-
-  // Auto-copy env text
-  if (el.autoCopyCheckbox.checked) {
-    copyToClipboard(envText);
-    flashBtn(el.btnCopyPrompt, '✅ 已自動複製！');
-  }
-}
 
 async function showPrompt() {
   hideAllCards();
@@ -260,14 +252,8 @@ async function executeToolCalls(plan) {
       return `<tool_result>\n${JSON.stringify(obj, null, 2)}\n</tool_result>`;
     }).join('\n\n');
 
-    el.toolResultTextarea.value = formatted;
-    el.toolResultCard.classList.remove('hidden');
-
-    // Auto-copy tool result
-    if (el.autoCopyCheckbox.checked) {
-      copyToClipboard(formatted);
-      flashBtn(el.btnCopyToolResult, '✅ 已自動複製！');
-    }
+    copyBackContent = formatted;
+    activePromptTab = 'copyBack';
 
     // 更新歷程
     try {
@@ -328,11 +314,6 @@ function handleCopy() {
   flashBtn(el.btnCopyPrompt, '✅ 已複製！');
 }
 
-function handleCopyResult() {
-  copyToClipboard(el.toolResultTextarea.value);
-  flashBtn(el.btnCopyToolResult, '✅ 已複製！');
-}
-
 function flashBtn(btn, text) {
   const orig = btn.innerText;
   btn.innerText = text;
@@ -342,7 +323,7 @@ function flashBtn(btn, text) {
 
 function switchTab(tab) {
   activePromptTab = tab;
-  const allTabs = [el.btnTabSystem, el.btnTabAgents, el.btnTabSkills, el.btnTabFull];
+  const allTabs = [el.btnTabSystem, el.btnTabAgents, el.btnTabSkills, el.btnTabCopyBack];
   allTabs.forEach(b => { b.style.borderColor = ''; b.style.color = ''; });
 
   const sources = promptData?.promptSources || {};
@@ -360,11 +341,12 @@ function switchTab(tab) {
     el.btnTabSkills.style.borderColor = 'var(--accent-color)';
     el.btnTabSkills.style.color = 'var(--accent-color)';
     textToCopy = sources.skills || '';
-  } else {
-    el.btnTabFull.style.borderColor = 'var(--accent-color)';
-    el.btnTabFull.style.color = 'var(--accent-color)';
-    textToCopy = promptData?.fullText || '';
+  } else if (tab === 'copyBack') {
+    el.btnTabCopyBack.style.borderColor = 'var(--accent-color)';
+    el.btnTabCopyBack.style.color = 'var(--accent-color)';
+    textToCopy = copyBackContent;
   }
+
   el.promptTextarea.value = textToCopy;
 
   if (textToCopy && el.autoCopyCheckbox.checked) {
@@ -415,7 +397,6 @@ function renderSessionList() {
 function hideAllCards() {
   el.promptCard.classList.add('hidden');
   el.responseCard.classList.add('hidden');
-  el.toolResultCard.classList.add('hidden');
 }
 
 function updatePhase(phase, text) {
