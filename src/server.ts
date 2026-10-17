@@ -5,6 +5,7 @@ import { registerEditTool } from './tools/edit.js';
 import { registerBashTool } from './tools/bash.js';
 
 export const SERVER_NAME = 'z-agent';
+export const SERVER_TITLE = 'z-agent';
 export const SERVER_VERSION = '2.0.0';
 
 /**
@@ -14,6 +15,7 @@ export const SERVER_VERSION = '2.0.0';
 export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: SERVER_NAME,
+    title: SERVER_TITLE,
     version: SERVER_VERSION,
   });
 
