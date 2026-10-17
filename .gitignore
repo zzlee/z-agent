@@ -1,5 +1,4 @@
 node_modules/
-server/dist/
-data/sessions/
-workspace/
+dist/
 .DS_Store
+*.log

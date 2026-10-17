@@ -1,52 +1,133 @@
 # Z-Agent
 
-## 專案概述
+A minimal [MCP](https://modelcontextprotocol.io) server that exposes four tools — `bash`, `read`, `write`, and `edit` — over **Streamable HTTP**. The tool design follows the [pi coding agent](https://github.com/earendil-works/pi): four tools are all a coding agent needs.
 
-Z-Agent 是一個**無內建 LLM、無 API 金鑰**的輕量級工具呼叫轉發閘道 (Tool-Use Relay Gateway)。
+There is no relay loop, no session UI, and no authentication. The server runs commands and edits files with the privileges of the user who launched it.
 
-許多強大的 LLM（如 Gemini、ChatGPT、Claude 等）雖然具備 tool-use / function-calling 能力，但它們無法直接存取本地檔案系統或執行命令。Z-Agent 的角色非常單純——**只做轉發（relay）**：
+## Tools
 
-1. **本機工具 Schema 輸出**：將可用工具（read、write、edit、bash、search）的定義與系統提示詞組裝成一份文字，供使用者手動複製給外部 LLM。
-2. **LLM 回應接收與轉發執行**：使用者將 LLM 的回應（含 `<tool_call>` 標記）複製貼回 Z-Agent，系統解析出其中的工具呼叫，在本地依賴排序後執行，最後輸出結果。
-3. **結果反饋**：執行完的工具結果格式化後輸出，使用者可複製回 LLM 對話中，形成下一輪循環。
+| Tool | Parameters | Description |
+|---|---|---|
+| `read` | `path`, `offset?`, `limit?` | Read a file as line-numbered text (default first 2000 lines). |
+| `write` | `path`, `content` | Create or overwrite a file; creates parent directories. |
+| `edit` | `path`, `oldText`, `newText` | Replace an exact, unique string in a file. |
+| `bash` | `command`, `timeout?` | Run a non-interactive bash command; returns stdout+stderr and exit code. |
 
-整個過程不涉及 LLM API、不傳送資料到第三方、不需要金鑰設定——Z-Agent 僅作為**人機之間的轉發管道**。
+Paths may be absolute or relative to the server's working directory; a leading `~` is expanded to the home directory.
 
----
+## Requirements
 
-## 快速開始
+- Node.js >= 18
 
-### 開發環境
-啟動開發環境：
+## Build & run
+
 ```sh
 npm install
-npm run dev
-```
-
-### 測試
-執行測試：
-```sh
-npm test
-```
-
-### 建置與執行
-```sh
 npm run build
 npm start
 ```
 
----
+The server listens on `http://127.0.0.1:3000` and serves the MCP endpoint at `/mcp`.
 
-## 文件索引
+### Configuration (environment variables)
 
-| 文件 | 說明 |
-|------|------|
-| [00-overview.md](wiki/00-overview.md) | 專案概述 |
-| [01-architecture.md](wiki/01-architecture.md) | 極簡前後端架構設計 |
-| [02-agent-loop.md](wiki/02-agent-loop.md) | 轉發循環與 DAG 依賴執行 |
-| [03-tools.md](wiki/03-tools.md) | 五大工具定義與使用格式 |
-| [04-web-ui.md](wiki/04-web-ui.md) | Web 轉發控制台介面設計 |
-| [05-data-model.md](wiki/05-data-model.md) | 會話資料模型與儲存 |
-| [06-prompt-assembly.md](wiki/06-prompt-assembly.md) | 提示詞組裝變數機制 |
-| [07-implementation-plan.md](wiki/07-implementation-plan.md) | 實施計畫 |
-| [08-user-guide.md](wiki/08-user-guide.md) | 使用者操作與部署指南 |
+| Variable | Default | Description |
+|---|---|---|
+| `HOST` | `127.0.0.1` | Bind address. Keep it on localhost unless you know what you are doing. |
+| `PORT` | `3000` | Listen port. |
+| `MCP_PATH` | `/mcp` | HTTP path of the MCP endpoint. |
+
+```sh
+HOST=0.0.0.0 PORT=8080 npm start
+```
+
+`GET /health` returns `{"status":"ok"}` for liveness checks.
+
+## Development
+
+```sh
+npm run dev        # tsx watch
+npm test           # unit + in-memory end-to-end tests
+npm run typecheck  # tsc --noEmit
+```
+
+## Connecting an MCP client
+
+The transport is Streamable HTTP, so clients connect to a URL rather than spawning a process. Example client configuration:
+
+```json
+{
+  "mcpServers": {
+    "z-agent": {
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
+
+Launch the server from the directory you want the tools to operate on, because relative paths and `bash` use the server's current working directory.
+
+## Expose via Tailscale
+
+`scripts/serve-tailscale.sh` wraps `tailscale serve`/`funnel` so other devices can reach the server at its MagicDNS HTTPS URL.
+
+```sh
+AUTO_START=1 ./scripts/serve-tailscale.sh     # tailnet only (recommended)
+./scripts/serve-tailscale.sh funnel           # PUBLIC internet — no auth, beware
+./scripts/serve-tailscale.sh reset            # stop exposing
+```
+
+It configures a proxy from the external HTTPS URL to `http://127.0.0.1:3000` and prints the endpoint, e.g.:
+
+```
+external  : https://bill-dev.taila06758.ts.net/mcp
+```
+
+Notes:
+
+- Writing the Tailscale serve config requires root. The script sets you as the Tailscale operator once (`sudo tailscale set --operator=$USER`) so later runs need no privileges. Disable with `TS_OPERATOR=0`.
+- Requires HTTPS certificates enabled for your tailnet (admin console → DNS → HTTPS Certificates).
+- `serve` is private to your tailnet; `funnel` is public. Since this server has no authentication, prefer `serve`.
+
+> **Known issue:** `tailscale funnel` is currently broken on recent Tailscale versions — the funnel reports `Funnel on` and certificates issue fine, but the public `<node>.<tailnet>.ts.net` name is never published to public DNS (authoritative `ts.net` servers return NODATA), so the internet cannot resolve or reach it. See [tailscale/tailscale#21698](https://github.com/tailscale/tailscale/issues/21698). Use the ngrok option below if you need a public URL today.
+
+## Expose on a stable public URL via ngrok
+
+`scripts/serve-ngrok.sh` runs an [ngrok](https://ngrok.com) tunnel on your account's free **dev domain**, giving a public HTTPS URL that does **not change** between restarts (unlike the random `*.ngrok-free.app` URL you get without `--url`).
+
+One-time setup:
+
+1. Create a free account at <https://dashboard.ngrok.com>.
+2. Copy the authtoken from <https://dashboard.ngrok.com/get-started/your-authtoken> and run
+   `~/.local/bin/ngrok config add-authtoken <TOKEN>`.
+3. Claim your dev domain at <https://dashboard.ngrok.com/domains> (looks like `xxxx-yyyy-zzzz.ngrok-free.dev`).
+
+Then:
+
+```sh
+DOMAIN=<your>.ngrok-free.dev AUTO_START=1 ./scripts/serve-ngrok.sh   # start / restart
+./scripts/serve-ngrok.sh status                                      # show the URL
+./scripts/serve-ngrok.sh stop                                        # stop the tunnel
+```
+
+It prints the endpoint, e.g.:
+
+```
+external  : https://subcarinate-juelz-heliographically.ngrok-free.dev/mcp
+```
+
+> The ngrok tunnel exposes the server to the **entire public internet** with no authentication. Anyone who learns the URL can run shell commands and edit files on this machine.
+
+## Security
+
+This server is intentionally **YOLO**:
+
+- `bash` can execute any command with your full user privileges.
+- `write` and `edit` can modify any file your user can access.
+- There is **no authentication** and **no allow-list**.
+
+Because the server can both read data and execute code, the only meaningful isolation is the environment it runs in. Run it inside a container or a dedicated sandbox, bind it to `127.0.0.1`, and never expose it to an untrusted network. Authentication and permission controls are planned as future work.
+
+## License
+
+See repository for details.
