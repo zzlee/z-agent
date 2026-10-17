@@ -13,9 +13,13 @@ export const editInputSchema = {
   oldText: z
     .string()
     .describe(
-      'The exact text to find. It must match the file byte-for-byte, including whitespace and indentation, and must occur exactly once in the file.'
+      'The exact text to find. Must match the file byte-for-byte, including exact whitespace and indentation, and must occur exactly once. Do NOT include the "<line>: " prefixes produced by the "read" tool.'
     ),
-  newText: z.string().describe('The text to replace oldText with.'),
+  newText: z
+    .string()
+    .describe(
+      'The text to replace oldText with. Pass an empty string ("") to delete oldText from the file.'
+    ),
 };
 
 export interface EditArgs {
@@ -67,7 +71,7 @@ export function registerEditTool(server: McpServer): void {
     {
       title: 'Edit file',
       description:
-        'Replace an exact string in a file with new text. oldText must match the file exactly (including whitespace) and must be unique. Use this for precise, surgical edits instead of rewriting the whole file.',
+        'Replace an exact unique string in a file with new text. oldText must match byte-for-byte (excluding any line-number prefixes from the "read" tool) and occur exactly once; if it is ambiguous, include more surrounding lines to make it unique. Pass newText="" to delete code. Use this for precise, surgical edits instead of rewriting whole files.',
       inputSchema: editInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     },

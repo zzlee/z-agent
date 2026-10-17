@@ -11,7 +11,11 @@ export const writeInputSchema = {
     .describe(
       'Path to the file to write. May be relative to the server working directory or absolute. A leading "~" is expanded to the home directory.'
     ),
-  content: z.string().describe('The full content to write to the file.'),
+  content: z
+    .string()
+    .describe(
+      'The entire file content to write. Completely overwrites any existing content.'
+    ),
 };
 
 export interface WriteArgs {
@@ -40,7 +44,7 @@ export function registerWriteTool(server: McpServer): void {
     {
       title: 'Write file',
       description:
-        'Create a new file or overwrite an existing file with the given content. Parent directories are created automatically if they do not exist.',
+        'Create a new file or completely overwrite an existing file with the given content. Parent directories are created automatically. WARNING: This replaces the entire file content. To make partial modifications, use the "edit" tool instead to avoid data loss.',
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },

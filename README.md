@@ -8,10 +8,10 @@ There is no relay loop, no session UI, and no authentication. The server runs co
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `read` | `path`, `offset?`, `limit?` | Read a file as line-numbered text (default first 2000 lines). |
-| `write` | `path`, `content` | Create or overwrite a file; creates parent directories. |
-| `edit` | `path`, `oldText`, `newText` | Replace an exact, unique string in a file. |
-| `bash` | `command`, `timeout?` | Run a non-interactive bash command; returns stdout+stderr and exit code. |
+| `read` | `path`, `offset?`, `limit?` | Read a text file as line-numbered (`<line>: <content>`) text (default first 2000 lines). Do not copy the line-number prefixes into `edit`. |
+| `write` | `path`, `content` | Create or completely overwrite a file; creates parent directories. Use `edit` for partial changes to avoid data loss. |
+| `edit` | `path`, `oldText`, `newText` | Replace an exact, unique string in a file. Pass `newText=""` to delete code. |
+| `bash` | `command`, `timeout?` | Run a non-interactive bash command; returns stdout+stderr and exit code. Each call is a fresh subshell, so `cd` does not persist (use `cd dir && cmd`). |
 
 Paths may be absolute or relative to the server's working directory; a leading `~` is expanded to the home directory.
 

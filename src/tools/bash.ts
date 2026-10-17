@@ -14,7 +14,7 @@ export const bashInputSchema = {
   command: z
     .string()
     .describe(
-      'The shell command to execute. It runs via `bash -c` in the server working directory and must be non-interactive (avoid commands that wait for input).'
+      'The shell command to execute via `bash -c`. Runs in a fresh subshell in the server working directory; directory changes (`cd`) do NOT persist between calls (use `cd dir && cmd` instead). Must be non-interactive (avoid commands that wait for user input).'
     ),
   timeout: z
     .number()
@@ -122,7 +122,7 @@ export function registerBashTool(server: McpServer): void {
     {
       title: 'Run bash command',
       description:
-        'Execute a bash command in the server working directory and return its combined stdout/stderr together with the exit code. Use it for file operations such as ls, grep, find, git, etc. Commands must be non-interactive.',
+        'Execute a shell command in the server working directory and return its combined stdout/stderr together with the exit code. Each call runs non-interactively in a fresh subshell, so directory changes (`cd`) do NOT persist between calls — use `cd dir && cmd` instead. A non-zero exit code is reported as an error but is often normal tool behavior (e.g. `grep` with no match, `diff` showing differences).',
       inputSchema: bashInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },

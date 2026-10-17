@@ -71,6 +71,12 @@ describe('write', () => {
     const content = await fs.readFile(join(testDir, 'b.txt'), 'utf8');
     expect(content).toBe('second');
   });
+
+  it('overwrites (shrinks) content completely', async () => {
+    await runWrite({ path: 'guard.txt', content: 'aaaa\nbbbb\ncccc\n' });
+    await runWrite({ path: 'guard.txt', content: 'bbbb\n' });
+    expect(await fs.readFile(join(testDir, 'guard.txt'), 'utf8')).toBe('bbbb\n');
+  });
 });
 
 // ─────────────────────────── edit ───────────────────────────
@@ -98,6 +104,29 @@ describe('edit', () => {
   it('errors when oldText equals newText', async () => {
     const res = await runEdit({ path: 'edit.txt', oldText: 'same', newText: 'same' });
     expect(res.isError).toBe(true);
+  });
+
+  it('deletes code when newText is an empty string', async () => {
+    await fs.writeFile(join(testDir, 'delete.txt'), 'line1\nline2\nline3', 'utf8');
+    const res = await runEdit({ path: 'delete.txt', oldText: 'line2\n', newText: '' });
+    expect(res.isError).toBeFalsy();
+    expect(await fs.readFile(join(testDir, 'delete.txt'), 'utf8')).toBe('line1\nline3');
+  });
+
+  it('replaces multi-line indented code', async () => {
+    await fs.writeFile(join(testDir, 'code.ts'), 'function f() {\n  return 1;\n}\n', 'utf8');
+    const res = await runEdit({ path: 'code.ts', oldText: '  return 1;', newText: '  return 2;' });
+    expect(res.isError).toBeFalsy();
+    expect(await fs.readFile(join(testDir, 'code.ts'), 'utf8')).toBe(
+      'function f() {\n  return 2;\n}\n'
+    );
+  });
+
+  it('does not match when oldText includes read line-number prefixes', async () => {
+    await fs.writeFile(join(testDir, 'numbered.txt'), 'alpha\nbeta', 'utf8');
+    const res = await runEdit({ path: 'numbered.txt', oldText: '1: alpha', newText: 'x' });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toContain('Could not find');
   });
 });
 
@@ -130,5 +159,14 @@ describe('bash', () => {
   it('captures stderr', async () => {
     const res = await runBash({ command: 'echo oops 1>&2' });
     expect(textOf(res)).toContain('oops');
+  });
+
+  it('does not persist cd between calls but honors cd && cmd', async () => {
+    await fs.mkdir(join(testDir, 'subdir'), { recursive: true });
+    await runBash({ command: 'cd subdir' });
+    const persisted = await runBash({ command: 'pwd' });
+    expect(textOf(persisted)).toContain(testDir);
+    const chained = await runBash({ command: 'cd subdir && pwd' });
+    expect(textOf(chained)).toContain(join(testDir, 'subdir'));
   });
 });

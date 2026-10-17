@@ -75,7 +75,7 @@ export function registerReadTool(server: McpServer): void {
     {
       title: 'Read file',
       description:
-        'Read the contents of a file as line-numbered text. For large files, use offset/limit to read a specific range. Paths may be relative to the server working directory or absolute.',
+        'Read the contents of a text file as line-numbered text (not intended for binary files). Output lines are formatted as "<line>: <content>". For large files, use offset/limit to read a specific range. Paths may be relative to the server working directory or absolute. IMPORTANT: Do NOT include the "<line>: " prefixes when copying text into the "edit" tool.',
       inputSchema: readInputSchema,
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
